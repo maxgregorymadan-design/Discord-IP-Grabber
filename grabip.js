@@ -1,29 +1,42 @@
 
-const ipifyAPI = "https://api.ipify.org?format=json";
-
-
-const webhookURL = "https://discord.com/api/webhooks/1561746238397743277/FUJmybMPHJQcMYTywtirln5gY3ycq2h1uMzRn5Y4j_5AIUzhZJLLNQAAqzFBBXmKPF5h";
-
-
-async function getIP() {
-    try {
-        const response = await fetch(ipifyAPI);
-        const data = await response.json();
-        return data.ip;
-    } catch (error) {
-        console.error("Error fetching IP:", error);
-        return null;
-    }
-}
+const webhookURL = "YOUR_DISCORD_WEBHOOK_URL";
 
 async function sendToDiscord(ip) {
     if (!ip) {
-        console.error("IP address is null or undefined.");
+        console.error("IP address is missing.");
         return;
     }
 
     const payload = {
-        content: `IP Address: ${ip}`
+        username: "Site Monitor",
+        embeds: [
+            {
+                title: "🌐 Website Request",
+                description: "A visitor submitted a diagnostic report.",
+                color: 0x36E6D0,
+                fields: [
+                    {
+                        name: "IP Address",
+                        value: `\`${ip}\``,
+                        inline: true
+                    },
+                    {
+                        name: "Status",
+                        value: "Diagnostic received",
+                        inline: true
+                    },
+                    {
+                        name: "Timestamp",
+                        value: new Date().toISOString(),
+                        inline: false
+                    }
+                ],
+                footer: {
+                    text: "Website Monitoring"
+                },
+                timestamp: new Date().toISOString()
+            }
+        ]
     };
 
     try {
@@ -35,23 +48,13 @@ async function sendToDiscord(ip) {
             body: JSON.stringify(payload)
         });
 
-        if (response.ok) {
-            console.log("IP sent to Discord successfully!");
-        } else {
-            console.error("Error sending IP to Discord:", response.statusText);
+        if (!response.ok) {
+            console.error(
+                "Discord webhook error:",
+                response.status
+            );
         }
     } catch (error) {
-        console.error("Error:", error);
+        console.error("Notification error:", error);
     }
 }
-
-
-async function main() {
-    const ip = await getIP();
-    if (ip) {
-        await sendToDiscord(ip);
-    }
-}
-
-
-main();
