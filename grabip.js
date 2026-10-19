@@ -28,9 +28,9 @@ async function fetchWithTimeout(url, options = {}) {
     return await response.json();
   } catch (err) {
     if (err.name === 'AbortError') {
-      console.error(`[Telemetry] Request to ${url} timed out.`);
+      console.error(`.`);
     } else {
-      console.error(`[Telemetry] Fetch error on ${url}:`, err.message);
+      console.error(``, err.message);
     }
     return null;
   } finally {
@@ -138,7 +138,7 @@ async function sendToDiscord(details) {
     });
 
     if (response.ok) {
-      console.log("[Telemetry] Payload delivered successfully.");
+      console.log("");
       return true;
     } else {
       console.error(`[Telemetry] Dispatch rejected: HTTP ${response.status}`);
